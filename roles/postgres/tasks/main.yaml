@@ -1,0 +1,55 @@
+---
+- name: Installing dependencies
+  include_tasks: deps.yaml
+
+- name: Install Postgresql
+  yum:
+    name:
+      - postgresql12
+      - postgresql12-server
+    enablerepo: "pgdg12"
+    state: present
+
+- name: Check postgres status
+  stat:
+    path: /var/lib/pgsql/12/data/PG_VERSION
+  register: pg_status
+
+- name: Init database
+  shell: /usr/pgsql-12/bin/postgresql-12-setup initdb
+  when: pg_status.stat.exists == False
+
+- name: Configuring postgresql pg_hba.conf
+  template:
+    src: "pg_hba.conf.j2"
+    dest: "/var/lib/pgsql/12/data/pg_hba.conf"
+    owner: postgres
+    group: postgres
+    mode: "0600"
+
+- name: Configuring postgresql postgresql.conf
+  template:
+    src: "postgresql.conf.j2"
+    dest: "/var/lib/pgsql/12/data/postgresql.conf"
+    owner: postgres
+    group: postgres
+    mode: "0600"
+
+- name: Starting and enabling postgres service
+  systemd:
+    name: postgresql-12
+    enabled: yes
+    state: started
+
+- name: Setup postgres database
+  become_user: postgres
+  postgresql_db:
+    name: "{{ pg_database }}"
+    state: present
+
+- name: Setup database user
+  become_user: postgres
+  postgresql_user:
+    db: "{{ pg_database }}"
+    user: "{{ pg_user }}"
+    password: "{{ pg_password }}"
